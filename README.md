@@ -81,10 +81,4 @@ Before making changes, `traefikscan.sh` automatically backs up the original `doc
 
 Each backup is timestamped to ensure rollback if needed.
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
 📌 **Created with automation for efficient Traefik management.** 🚀

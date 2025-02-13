@@ -1,116 +1,190 @@
 #!/bin/bash
 
-# Get list of running containers
-containers=$(docker ps -q)
+# Global variables
+BASE_PATH=""
+DIALOG_CMD=$(which dialog)
+BACKUP_DIR="./docker_compose_backups"
+TEMP_DIR="/tmp/traefik_manager"
 
-echo "Container Labels Verification Summary:"
-echo "======================================"
+# Error handling function
+handle_error() {
+    local message="$1"
+    $DIALOG_CMD --title "Error" --msgbox "$message" 10 50
+    exit 1
+}
 
-if [ -z "$containers" ]; then
-  echo "No running containers found."
-  exit 0
-fi
-
-declare -A no_label_containers
-declare -A no_traefik_label_containers
-declare -A correct_traefik_containers
-declare -A incorrect_traefik_labels
-
-# Scan each container and check for labels
-for container in $containers; do
-  container_name=$(docker inspect --format='{{.Name}}' $container | sed 's/^\/\(.*\)/\1/')
-  labels=$(docker inspect --format='{{json .Config.Labels}}' $container | jq '.')
-
-  if [ "$labels" == "null" ]; then
-    no_label_containers["$container_name"]="No Labels"
-  else
-    # Check if Traefik labels exist
-    if echo $labels | jq -e 'has("traefik.enable")' > /dev/null; then
-      traefik_enabled=$(echo $labels | jq -r '."traefik.enable"')
-      host_rule=$(echo $labels | jq -r '."traefik.http.routers.grafana.rule" // empty')
-
-      # Verify correct Traefik configuration
-      if [[ "$traefik_enabled" == "true" && -n "$host_rule" && "$host_rule" == Host* ]]; then
-        correct_traefik_containers["$container_name"]="Traefik Managed"
-      else
-        incorrect_traefik_labels["$container_name"]="Incorrect or Missing Traefik Labels"
-      fi
-    else
-      no_traefik_label_containers["$container_name"]="No Traefik Labels"
+# Dependency check function
+check_dependencies() {
+    local missing_deps=()
+    
+    if [ -z "$DIALOG_CMD" ]; then
+        missing_deps+=("dialog")
     fi
-  fi
-done
+    
+    if ! command -v yq &>/dev/null; then
+        missing_deps+=("yq")
+    fi
+    
+    if [ ${#missing_deps[@]} -ne 0 ]; then
+        echo "Missing required dependencies: ${missing_deps[*]}"
+        echo "Please install them using your package manager."
+        echo "For example: sudo apt-get install ${missing_deps[*]}"
+        exit 1
+    fi
+}
 
-# Display results
-echo -e "\nContainers Without Any Labels:"
-echo "-------------------------------"
-if [ ${#no_label_containers[@]} -eq 0 ]; then
-  echo "All containers have labels."
-else
-  for container in "${!no_label_containers[@]}"; do
-    echo " - $container: ${no_label_containers[$container]}"
-  done
-fi
+# Setup function
+setup() {
+    mkdir -p "$BACKUP_DIR"
+    mkdir -p "$TEMP_DIR"
+    trap 'rm -rf "$TEMP_DIR"' EXIT
+}
 
-echo -e "\nContainers Without Traefik Labels:"
-echo "-----------------------------------"
-if [ ${#no_traefik_label_containers[@]} -eq 0 ]; then
-  echo "All containers have Traefik-related labels."
-else
-  for container in "${!no_traefik_label_containers[@]}"; do
-    echo " - $container: ${no_traefik_label_containers[$container]}"
-  done
-fi
+# Function to select base directory
+select_base_directory() {
+    local default_path="/root/Containers"
+    
+    BASE_PATH=$($DIALOG_CMD --stdout --title "Select Base Directory" \
+        --dselect "$default_path" 15 60)
+    
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        handle_error "Directory selection cancelled"
+    fi
+    
+    if [ ! -d "$BASE_PATH" ]; then
+        handle_error "Invalid directory: $BASE_PATH"
+    fi
+    
+    BASE_PATH=$(realpath "$BASE_PATH")
+}
 
-echo -e "\nContainers with Correct Traefik Labels:"
-echo "---------------------------------------"
-if [ ${#correct_traefik_containers[@]} -eq 0 ]; then
-  echo "No containers have correctly configured Traefik labels."
-else
-  for container in "${!correct_traefik_containers[@]}"; do
-    echo " - $container: ${correct_traefik_containers[$container]}"
-  done
-fi
+# Function to create checklist menu
+create_checklist_menu() {
+    local services_file="$1"
+    local temp_menu="$TEMP_DIR/menu_options"
+    > "$temp_menu"
+    
+    local count=1
+    while IFS=: read -r file service; do
+        local display_name="${file##*/}:$service"
+        echo "$count \"$display_name\" off" >> "$temp_menu"
+        ((count++))
+    done < "$services_file"
+    
+    echo "$temp_menu"
+}
 
-echo -e "\nContainers with Incorrect or Missing Traefik Labels:"
-echo "-----------------------------------------------------"
-if [ ${#incorrect_traefik_labels[@]} -eq 0 ]; then
-  echo "All containers with Traefik labels are correctly configured."
-else
-  for container in "${!incorrect_traefik_labels[@]}"; do
-    echo " - $container: ${incorrect_traefik_labels[$container]}"
-  done
-fi
+# Function to scan for docker-compose.yml files
+scan_docker_compose_files() {
+    local services_file="$TEMP_DIR/services.txt"
+    > "$services_file"
+    
+    while IFS= read -r file; do
+        if [ -f "$file" ]; then
+            yq eval '.services | keys | .[]' "$file" 2>/dev/null | while read -r service; do
+                echo "$file:$service" >> "$services_file"
+            done
+        fi
+    done < <(find "$BASE_PATH" -type f \( -name "docker-compose.yml" -o -name "docker-compose.yaml" \))
+    
+    if [ ! -s "$services_file" ]; then
+        handle_error "No docker-compose services found in $BASE_PATH"
+    fi
+    
+    echo "$services_file"
+}
 
-echo -e "\nSummary Table:"
-echo "=============="
-printf "%-40s | %-30s\n" "Container Name" "Status"
-printf "%-40s | %-30s\n" "--------------------------------------" "------------------------------"
+# Function to select services
+select_services() {
+    local services_file="$1"
+    local menu_file=$(create_checklist_menu "$services_file")
+    
+    local cmd=($DIALOG_CMD --stdout --title "Select Services" \
+        --checklist "Choose services to add Traefik labels:" 20 70 10)
+    
+    while read -r line; do
+        cmd+=($line)
+    done < "$menu_file"
+    
+    "${cmd[@]}" 2>/dev/null
+}
 
-# Display No Label Containers in the Summary Table
-if [ ${#no_label_containers[@]} -ne 0 ]; then
-  for container in "${!no_label_containers[@]}"; do
-    printf "%-40s | %-30s\n" "$container" "${no_label_containers[$container]}"
-  done
-fi
+# Function to generate Traefik labels for path-based routing
+generate_traefik_labels() {
+    local container_name="$1"
+    local folder_name="$2"
+    
+    # Use container name as the path
+    local path_rule="/${container_name}"
+    
+    cat <<EOF
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${container_name}.rule=PathPrefix(\`${path_rule}\`)"
+      - "traefik.http.routers.${container_name}.entrypoints=web,websecure"
+      - "traefik.http.services.${container_name}.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.${container_name}-strip.stripprefix.prefixes=${path_rule}"
+      - "traefik.http.routers.${container_name}.middlewares=${container_name}-strip"
+EOF
+}
 
-# Display No Traefik Label Containers in the Summary Table
-if [ ${#no_traefik_label_containers[@]} -ne 0 ]; then
-  for container in "${!no_traefik_label_containers[@]}"; do
-    printf "%-40s | %-30s\n" "$container" "${no_traefik_label_containers[$container]}"
-  done
-fi
+# Function to backup file
+backup_file() {
+    local file="$1"
+    local backup_path="$BACKUP_DIR/$(basename "$file")_$(date +%Y%m%d%H%M%S).bak"
+    cp "$file" "$backup_path" || handle_error "Failed to create backup of $file"
+    echo "$backup_path"
+}
 
-# Display Correct Traefik Containers in the Summary Table
-if [ ${#correct_traefik_containers[@]} -ne 0 ]; then
-  for container in "${!correct_traefik_containers[@]}"; do
-    printf "%-40s | %-30s\n" "$container" "${correct_traefik_containers[$container]}"
-  done
-fi
+# Function to apply labels
+apply_labels() {
+    local file="$1"
+    local service="$2"
+    local labels="$3"
+    local temp_file="$TEMP_DIR/temp.yml"
+    
+    # Create new YAML with labels
+    yq eval ".services.$service.labels = load(\"$TEMP_DIR/labels.yml\")" "$file" > "$temp_file"
+    
+    # Show diff and confirm
+    if diff -u "$file" "$temp_file" | $DIALOG_CMD --title "Review Changes" --programbox 20 70; then
+        $DIALOG_CMD --yesno "Apply these changes?" 10 40
+        if [ $? -eq 0 ]; then
+            mv "$temp_file" "$file"
+            return 0
+        fi
+    fi
+    return 1
+}
 
-# Display Incorrect Traefik Containers in the Summary Table
-if [ ${#incorrect_traefik_labels[@]} -ne 0 ]; then
-  for container in "${!incorrect_traefik_labels[@]}"; do
-    printf "%-40s | %-30s\n" "$container" "${incorrect_traefik_labels[$container]}"
-  done
-fi
+# Main function
+main() {
+    check_dependencies
+    setup
+    
+    select_base_directory
+    local services_file=$(scan_docker_compose_files)
+    local selected_services=$(select_services "$services_file")
+    [ -n "$selected_services" ] || exit 0
+    
+    # Process selected services
+    for tag in $selected_services; do
+        local service_info=$(sed -n "${tag}p" "$services_file")
+        local file=${service_info%%:*}
+        local service=${service_info#*:}
+        
+        # Generate and save labels
+        generate_traefik_labels "$service" "$(dirname "$file")" > "$TEMP_DIR/labels.yml"
+        
+        # Backup and apply
+        backup_file "$file"
+        if apply_labels "$file" "$service" "$TEMP_DIR/labels.yml"; then
+            $DIALOG_CMD --msgbox "Successfully updated $service in $file" 10 50
+        else
+            $DIALOG_CMD --msgbox "Skipped updating $service in $file" 10 50
+        fi
+    done
+}
+
+main "$@"

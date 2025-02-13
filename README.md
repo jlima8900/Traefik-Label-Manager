@@ -1,92 +1,90 @@
-# Docker Container Labels Verification Script
+# TraefikScan - Automated Traefik Label Manager for Docker Compose
 
-This script scans all running Docker containers and checks for the presence of Docker labels, specifically verifying **Traefik-related labels** for correct configuration.
+`traefikscan.sh` is an interactive shell script that scans for `docker-compose.yml` files, allows users to select services, and dynamically applies Traefik labels for path-based routing. It ensures proper backups before making modifications, providing a safe and efficient way to manage Traefik configurations.
 
 ## Features
 
-- Categorizes containers based on the presence and correctness of their labels.
-- Checks for containers with:
-  - No labels
-  - Missing or incorrect Traefik-related labels
-  - Correctly configured Traefik labels
-- Displays the results in both detailed sections and a summary table.
-
-## Requirements
-
-- Docker installed and running.
-- The `jq` utility for parsing JSON.
+- **Interactive UI**: Uses `dialog` for user-friendly navigation and selection.
+- **Automated Scan**: Finds all `docker-compose.yml` files within the specified directory.
+- **Selective Service Update**: Allows users to choose which services to modify.
+- **Path-Based Routing**: Automatically generates and applies Traefik labels for selected services.
+- **Backup Mechanism**: Creates backups of `docker-compose.yml` before applying changes.
+- **Dependency Check**: Ensures `dialog` and `yq` are installed before execution.
+- **Confirmation and Review**: Displays changes for review before applying modifications.
 
 ## Installation
 
-Clone the repository or download the script:
+Ensure you have the required dependencies installed:
 
-```bash
-git clone https://github.com/yourusername/docker-label-verifier.git
-cd docker-label-verifier
+```sh
+sudo apt-get install dialog
+sudo apt-get install yq
 ```
 
-Make the script executable:
+Clone or download this repository:
 
-```bash
-chmod +x verify_labels.sh
+```sh
+git clone https://github.com/your-repo/traefikscan.git
+cd traefikscan
+chmod +x traefikscan.sh
 ```
 
 ## Usage
 
 Run the script:
 
-```bash
-./verify_labels.sh
+```sh
+./traefikscan.sh
 ```
 
-The script will display the results in different sections and provide a summary table at the end.
+### Steps:
 
-## Output Example
+1. **Select Base Directory**  
+   Choose the root folder where your Docker Compose files are stored (default: `/root/Containers`).
 
-```
-Container Labels Verification Summary:
-======================================
+2. **Scan for Services**  
+   The script identifies all `docker-compose.yml` files and lists available services.
 
-Containers Without Any Labels:
--------------------------------
- - mycontainer1: No Labels
+3. **Select Services to Update**  
+   A checklist appears, allowing you to choose which services should have Traefik labels added.
 
-Containers Without Traefik Labels:
------------------------------------
- - mycontainer2: No Traefik Labels
+4. **Review Changes**  
+   Before applying changes, a `diff` comparison is shown, and you must confirm modifications.
 
-Containers with Correct Traefik Labels:
----------------------------------------
- - grafana: Traefik Managed
+5. **Apply Labels**  
+   If confirmed, Traefik labels are added to the `docker-compose.yml` file.
 
-Containers with Incorrect or Missing Traefik Labels:
------------------------------------------------------
- - mycontainer3: Incorrect or Missing Traefik Labels
+6. **Completion**  
+   A message box confirms which services have been successfully updated.
 
-Summary Table:
-==============
-Container Name                          | Status                        
-----------------------------------------|-------------------------------
-mycontainer1                            | No Labels                     
-mycontainer2                            | No Traefik Labels             
-grafana                                 | Traefik Managed               
-mycontainer3                            | Incorrect or Missing Traefik Labels
-```
+## Generated Traefik Labels
 
-## Customization
+For each selected service, the following labels are applied:
 
-To adjust the validation criteria for Traefik labels (e.g., host rules), modify this section of the script:
-
-```bash
-host_rule=$(echo $labels | jq -r '."traefik.http.routers.grafana.rule" // empty')
+```yaml
+labels:
+  - "traefik.enable=true"
+  - "traefik.http.routers.<service-name>.rule=PathPrefix(`/service-name`)"
+  - "traefik.http.routers.<service-name>.entrypoints=web,websecure"
+  - "traefik.http.services.<service-name>.loadbalancer.server.port=80"
+  - "traefik.http.middlewares.<service-name>-strip.stripprefix.prefixes=/service-name"
+  - "traefik.http.routers.<service-name>.middlewares=<service-name>-strip"
 ```
 
-You can replace `"traefik.http.routers.grafana.rule"` with other Traefik rule checks as needed.
+## Backup and Safety
 
-## Troubleshooting
+Before making changes, `traefikscan.sh` automatically backs up the original `docker-compose.yml` file in:
 
-- If `jq` is not installed, install it using:
-  - **Ubuntu/Debian**: `sudo apt-get install jq`
-  - **CentOS/RHEL**: `sudo yum install jq`
-  - **macOS**: `brew install jq`
-- Ensure Docker is running: `systemctl status docker`
+```sh
+./docker_compose_backups/
+```
+
+Each backup is timestamped to ensure rollback if needed.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+📌 **Created with automation for efficient Traefik management.** 🚀

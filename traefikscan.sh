@@ -59,6 +59,23 @@ select_base_directory() {
     BASE_PATH=$(realpath "$BASE_PATH")
 }
 
+# Function to detect service port
+detect_service_port() {
+    local file="$1"
+    local service="$2"
+    
+    # Try to get the first exposed port from the ports section
+    local exposed_port=$(yq eval ".services.$service.ports[0]" "$file" | cut -d':' -f2)
+    
+    # If no port is found, try to get container port from the image
+    if [ "$exposed_port" = "null" ] || [ -z "$exposed_port" ]; then
+        # Default to 80 if no port is found
+        echo "80"
+    else
+        echo "$exposed_port"
+    fi
+}
+
 # Function to create checklist menu
 create_checklist_menu() {
     local services_file="$1"
@@ -113,17 +130,17 @@ select_services() {
 # Function to generate Traefik labels for path-based routing
 generate_traefik_labels() {
     local container_name="$1"
-    local folder_name="$2"
+    local port="$2"
+    local folder_name="$3"
     
     # Use container name as the path
     local path_rule="/${container_name}"
     
     cat <<EOF
-    labels:
       - "traefik.enable=true"
       - "traefik.http.routers.${container_name}.rule=PathPrefix(\`${path_rule}\`)"
       - "traefik.http.routers.${container_name}.entrypoints=web,websecure"
-      - "traefik.http.services.${container_name}.loadbalancer.server.port=80"
+      - "traefik.http.services.${container_name}.loadbalancer.server.port=${port}"
       - "traefik.http.middlewares.${container_name}-strip.stripprefix.prefixes=${path_rule}"
       - "traefik.http.routers.${container_name}.middlewares=${container_name}-strip"
 EOF
@@ -174,8 +191,11 @@ main() {
         local file=${service_info%%:*}
         local service=${service_info#*:}
         
+        # Detect the service port
+        local port=$(detect_service_port "$file" "$service")
+        
         # Generate and save labels
-        generate_traefik_labels "$service" "$(dirname "$file")" > "$TEMP_DIR/labels.yml"
+        generate_traefik_labels "$service" "$port" "$(dirname "$file")" > "$TEMP_DIR/labels.yml"
         
         # Backup and apply
         backup_file "$file"

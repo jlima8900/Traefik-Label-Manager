@@ -51,3 +51,13 @@ This script is like a **smart assistant** for setting up **Traefik labels in Doc
 
 No more **YAML headaches**, no more **guesswork**—just **click, review, apply, and go!** 🚀😎  
 
+## 📜 License
+This project is licensed under the **GNU General Public License v3.0 (GPL-3.0).**  
+
+✅ **You are free to use, modify, and share** this software.  
+✅ **Any modifications or redistributed versions must also be open-source** under GPL-3.0.  
+✅ **No one can make it closed-source** or restrict user freedoms.  
+
+For the full license text, see the [`LICENSE_GPL`](LICENSE_GPL) file or read it [here](https://www.gnu.org/licenses/gpl-3.0.en.html).
+
+

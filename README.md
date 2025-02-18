@@ -47,16 +47,8 @@ Example Folder Structure
 
 This is how your project might look when running the script:
 
-/home/user/projects/
-├── Containers/
-│   ├── Gitea/
-│   │   └── docker-compose.yml
-│   ├── Portainer/
-│   │   └── docker-compose.yaml
-│   ├── Traefik/
-│   │   └── docker-compose.yml
-└── Traefik-Label-Manager/
-    └── traefik-label-wizard.sh
+![Screenshot 2025-02-18 at 7 23 48 a m](https://github.com/user-attachments/assets/4a8e582b-45fa-40b2-b6c5-5a59cb1fe880)
+
 
 Example Usage
 

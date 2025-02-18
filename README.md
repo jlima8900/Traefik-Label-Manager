@@ -27,15 +27,45 @@ So, you’ve got **a bunch of Docker Compose files** running different services,
 
 ---
 
-## 👨‍💻 How to Use It
-1. **Run the script** (inside the folder where your `docker-compose.yml` files live):  
-   ```bash
-   ./traefik-label-manager.sh
-   ```
-2. **Select the base folder** where your Docker Compose files are stored.  
-3. **Pick the services** you want to apply Traefik labels to.  
-4. **Review the changes** (you’ll see exactly what’s being modified).  
-5. **Confirm & Apply** – Your services now have Traefik labels and are ready to go! 🎉  
+## 🚀 How to Use It
+
+1️⃣ Run the script – Just launch it from anywhere:
+
+./traefik-label-wizard.sh
+
+(No need to be inside a specific folder—just run it and follow the prompts!)
+
+2️⃣ Choose the base folder – Select the top-level directory where your docker-compose.yml files are stored.
+
+3️⃣ Pick the services – The script scans your setup and lets you choose which services should get Traefik labels.
+
+4️⃣ Review the changes – Before making any modifications, you’ll get a preview of exactly what's being updated.
+
+5️⃣ Confirm & Apply – Like what you see? Hit confirm, and boom 💥—your services now have Traefik labels and are ready to roll! 🎉
+
+Example Folder Structure
+
+This is how your project might look when running the script:
+
+/home/user/projects/
+├── Containers/
+│   ├── Gitea/
+│   │   └── docker-compose.yml
+│   ├── Portainer/
+│   │   └── docker-compose.yaml
+│   ├── Traefik/
+│   │   └── docker-compose.yml
+└── Traefik-Label-Manager/
+    └── traefik-label-wizard.sh
+
+Example Usage
+
+cd /home/user/projects/
+./Traefik-Label-Manager/traefik-label-wizard.sh
+
+After running the script, it scans all folders inside /home/user/projects/Containers/, detects services, and applies Traefik labels. ✅
+
+
 
 ---
 

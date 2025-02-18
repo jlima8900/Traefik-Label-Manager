@@ -22,7 +22,7 @@ So, you’ve got **a bunch of Docker Compose files** running different services,
 ✅ **Saves Time** – No more copy-pasting Traefik labels into YAML files.  
 ✅ **Prevents Errors** – Catches mistakes before they ruin your setup.  
 ✅ **Interactive & Easy** – Pick services via a simple menu, no CLI gymnastics required.  
-✅ **Fully Automated** – Detects services, ports, and structure—so you don’t have to.  
+✅ **Fully Automated** – Detects services, ports, and structure — so you don’t have to.  
 ✅ **Works With Any Docker Setup** – No special config needed.  
 
 ---

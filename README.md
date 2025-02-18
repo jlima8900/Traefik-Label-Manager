@@ -1,6 +1,7 @@
 # 🚀 Traefik Label Manager – Your YAML Wizard! 🧙‍♂️
 
-So, you’ve got **a bunch of Docker Compose files** running different services, and you want to expose them through **Traefik** with the right labels? Instead of wasting time **manually editing YAML files** (and probably breaking something 😅), this script **does it all for you—automatically, safely, and interactively!**  
+So, you’ve got **a bunch of Docker Compose files** running different services, and you want to expose them through **Traefik** with the right labels? 
+Instead of wasting time **manually editing YAML files** (and probably breaking something 😅), this script **does it all for you—automatically, safely, and interactively!**  
 
 ---
 
